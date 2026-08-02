@@ -47,6 +47,7 @@ def dates_keyboard() -> InlineKeyboardMarkup:
     """Выбор даты: 7 ближайших РАБОЧИХ дней (ВС — выходной)."""
     builder = InlineKeyboardBuilder()
     today = datetime.now()
+    tomorrow = today + timedelta(days=1)
     added = 0
     offset = 0
     while added < 7:
@@ -55,9 +56,9 @@ def dates_keyboard() -> InlineKeyboardMarkup:
         if d.weekday() == 6:  # Воскресенье — выходной
             continue
         label = f"{d.strftime('%d.%m')} ({WEEKDAYS[d.weekday()]})"
-        if added == 0:
+        if d.date() == today.date():
             label = f"📌 Сегодня {label}"
-        elif added == 1:
+        elif d.date() == tomorrow.date():
             label = f"🔜 Завтра {label}"
         builder.button(text=label, callback_data=f"date:{d.strftime('%Y-%m-%d')}")
         added += 1

@@ -86,7 +86,7 @@ async def about(callback: CallbackQuery):
         f"• {BARBERS['dmitry']['name']} — {BARBERS['dmitry']['specialty']}\n"
         f"• {BARBERS['artur']['name']} — {BARBERS['artur']['specialty']}\n\n"
         "📍 Москва, Воронежская ул., 44, корп. 1А\n"
-        "🕐 ПН–СБ 10:00 – 21:00, ВС — выходной",
+        "🕐 Ежедневно 10:00 – 20:00",
         reply_markup=start_keyboard(),
     )
 

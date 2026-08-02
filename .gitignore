@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Виртуальное окружение
+venv/
+
+# Конфиденциальные данные
+.env
+*.token
+*.key
+
+# Данные клиентов (CSV с персональными данными)
+bookings.csv
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

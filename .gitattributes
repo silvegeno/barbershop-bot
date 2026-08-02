@@ -1,0 +1,10 @@
+# Бинарные файлы — не трогать окончания строк
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+
+# Текстовые — авто-конвертация LF/CRLF
+* text=auto

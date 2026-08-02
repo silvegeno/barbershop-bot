@@ -25,6 +25,9 @@ from bookings import load_booked_slots, save_booking
 
 load_dotenv()
 
+# Абсолютный путь к папке бота (надёжно при запуске через systemd)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ---------------------------------------------------------------------------
 # FSM — состояния диалога записи
 # ---------------------------------------------------------------------------
@@ -59,7 +62,7 @@ async def cmd_start(message: Message, state: FSMContext):
     """Главный экран — /start."""
     await state.clear()
     await message.answer_photo(
-        photo=FSInputFile("logo.png"),
+        photo=FSInputFile(os.path.join(BASE_DIR, "logo.png")),
         caption=(
             "Добро пожаловать в барбершоп BARBERVAULT! ✂️\n\n"
             "Здесь ты можешь быстро записаться к мастеру:\n"
@@ -333,7 +336,7 @@ async def back_to_start(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.message.delete()
     await callback.message.answer_photo(
-        photo=FSInputFile("logo.png"),
+        photo=FSInputFile(os.path.join(BASE_DIR, "logo.png")),
         caption="Добро пожаловать в барбершоп BARBERVAULT! ✂️\n\nЧто хочешь сделать?",
         reply_markup=start_keyboard(),
         parse_mode="HTML",

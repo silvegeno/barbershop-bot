@@ -7,14 +7,28 @@ build/
 
 # Виртуальное окружение
 venv/
+.venv/
+env/
+
+# Кэш и отчёты инструментов Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Конфиденциальные данные
 .env
+.env.*
+!.env.example
 *.token
 *.key
+*.pem
 
 # Данные клиентов (CSV с персональными данными)
 bookings.csv
+clients.csv
+weekly_schedule.xlsx
 
 # IDE
 .idea/
@@ -25,3 +39,6 @@ bookings.csv
 # OS
 .DS_Store
 Thumbs.db
+
+# Локальные инструкции для Codex
+AGENTS.md

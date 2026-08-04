@@ -1,2 +1,195 @@
-# barbershop-bot
-Чат-бот для записи в барбершоп
+# BARBERVAULT — Telegram-бот для записи в барбершоп
+
+Telegram-бот на Python и aiogram для записи клиентов в барбершоп **BARBERVAULT**.
+Клиент выбирает услугу, мастера, дату и время, затем подтверждает запись. Данные
+сохраняются в CSV, а администратор получает автоматически обновляемое Excel-расписание.
+
+## Что умеет MVP
+
+- показывает 11 услуг, цены и длительность;
+- предлагает трёх мастеров: Ивана, Дмитрия и Артура;
+- отображает ближайшие 7 календарных дней, ежедневно с 10:00 до 20:00;
+- учитывает занятость **отдельно для каждого мастера** и длительность услуги;
+- не предлагает время, если услуга пересекается с другой записью или закончится после 20:00;
+- сохраняет подтверждённые записи в `bookings.csv`;
+- создаёт `weekly_schedule.xlsx` с отдельным листом для каждого мастера;
+- сохраняет клиента по Telegram ID в `clients.csv`;
+- при повторной записи не спрашивает имя, телефон и email заново;
+- показывает ссылку на политику обработки персональных данных перед первым вводом имени;
+- удаляет из чата сообщения с именем, телефоном и email после их обработки.
+
+## Структура проекта
+
+```text
+barbershop-bot/
+├── bot.py                    # Обработчики Telegram, сценарий записи, FSM
+├── bookings.py               # CSV-клиенты/записи, расчёт занятости, Excel-расписание
+├── data.py                   # Загрузка услуг и мастеров, рабочие часы
+├── keyboards.py              # Инлайн-клавиатуры
+├── services.csv              # Услуги, цены и длительность — редактируется в Excel
+├── barbers.csv               # Мастера — редактируется в Excel
+├── bookings.csv              # Подтверждённые записи, создаётся автоматически
+├── clients.csv               # Карточки клиентов по Telegram ID, создаётся автоматически
+├── weekly_schedule.xlsx      # Расписание на 7 дней, создаётся автоматически
+├── logo.png                  # Изображение стартового экрана
+├── bot-personal-data.html    # Страница политики для размещения на сайте
+├── requirements.txt          # Python-зависимости
+├── .env.example              # Пример файла с токеном
+└── AGENTS.md                 # Технические заметки и бэклог
+```
+
+`bookings.csv`, `clients.csv`, `weekly_schedule.xlsx`, `.env` и `venv/` не
+попадают в Git: они содержат локальные данные или персональные данные клиентов.
+
+## Форматы данных
+
+### `services.csv`
+
+```csv
+key,name,price,duration_min,category
+haircut,Мужская стрижка,1500,40,Стрижки
+```
+
+`key` нельзя менять для уже используемой услуги. `price` и `duration_min`
+должны быть целыми числами.
+
+### `barbers.csv`
+
+```csv
+key,name,specialty
+ivan,Иван,Классические и современные стрижки / стайлинг
+```
+
+### `bookings.csv`
+
+Создаётся автоматически. Содержит дату, время, услугу, её длительность, мастера,
+Telegram ID и контакты клиента.
+
+### `clients.csv`
+
+Создаётся автоматически после первой подтверждённой записи клиента. Telegram ID
+используется для поиска клиента при следующем обращении.
+
+## Локальный запуск
+
+Требуется Python 3.12 или новее.
+
+```powershell
+cd D:\path\to\barbershop-bot
+python -m venv venv
+venv\Scripts\pip install -r requirements.txt
+Copy-Item .env.example .env
+```
+
+Откройте `.env` и укажите токен, полученный у [@BotFather](https://t.me/BotFather):
+
+```env
+BOT_TOKEN=123456789:your_bot_token
+```
+
+Запуск:
+
+```powershell
+venv\Scripts\python bot.py
+```
+
+После запуска откройте бота в Telegram и отправьте `/start`.
+
+## Развёртывание на VPS (Ubuntu/Debian)
+
+### 1. Подготовьте проект
+
+```bash
+sudo mkdir -p /opt/barbershop-bot
+sudo chown "$USER":"$USER" /opt/barbershop-bot
+cd /opt/barbershop-bot
+git clone <URL_ВАШЕГО_РЕПОЗИТОРИЯ> .
+python3 -m venv venv
+./venv/bin/pip install -r requirements.txt
+cp .env.example .env
+nano .env
+```
+
+В `.env` укажите настоящий `BOT_TOKEN`.
+
+### 2. Опубликуйте страницу политики
+
+Скопируйте `bot-personal-data.html` в корень сайта `apetr.net` так, чтобы страница
+открывалась по адресу:
+
+```text
+https://apetr.net/bot-personal-data.html
+```
+
+Именно этот адрес используется URL-кнопкой в боте. До запуска проверьте страницу
+в браузере.
+
+### 3. Создайте службу systemd
+
+Создайте файл `/etc/systemd/system/barbershop-bot.service`:
+
+```ini
+[Unit]
+Description=BARBERVAULT Telegram bot
+After=network.target
+
+[Service]
+Type=simple
+User=YOUR_LINUX_USER
+WorkingDirectory=/opt/barbershop-bot
+ExecStart=/opt/barbershop-bot/venv/bin/python /opt/barbershop-bot/bot.py
+Restart=always
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Замените `YOUR_LINUX_USER` на имя пользователя VPS, затем выполните:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now barbershop-bot
+sudo systemctl status barbershop-bot
+```
+
+Просмотр журнала в реальном времени:
+
+```bash
+journalctl -u barbershop-bot -f
+```
+
+### Обновление бота на VPS
+
+```bash
+cd /opt/barbershop-bot
+git pull
+./venv/bin/pip install -r requirements.txt
+sudo systemctl restart barbershop-bot
+sudo systemctl status barbershop-bot
+```
+
+Перед обновлением не удаляйте `bookings.csv`, `clients.csv` и `.env`: в них
+хранятся записи и настройки работающего бота.
+
+## Администратору: расписание
+
+Файл `weekly_schedule.xlsx` обновляется при каждом запуске бота и после каждой
+подтверждённой записи. В нём три листа — `Иван`, `Дмитрий`, `Артур` — и статусы
+`СВОБОДНО` / `ЗАНЯТО` для каждого часового слота на ближайшие семь дней.
+
+Открывайте его в Excel или LibreOffice. Не редактируйте его вручную: это отчёт,
+который строится из `bookings.csv`.
+
+## Ограничения MVP и дальнейшие улучшения
+
+Сейчас бот не поддерживает отмену и перенос записи, напоминания, отпуска мастеров,
+индивидуальные графики и административную панель. Также для MVP используется CSV,
+а не база данных. Полный список отложенных задач находится в `AGENTS.md`.
+
+## Лицензия
+
+Проект создан как учебный кейс Zerocoder. Перед коммерческим использованием
+адаптируйте реквизиты, политику обработки персональных данных, услуги и контакты
+под фактического владельца барбершопа.

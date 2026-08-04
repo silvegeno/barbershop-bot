@@ -1,7 +1,7 @@
 """
 Клавиатуры и кнопки для бота.
 """
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
+from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from datetime import datetime, timedelta
 
@@ -44,7 +44,7 @@ def barbers_keyboard() -> InlineKeyboardMarkup:
 
 
 def dates_keyboard() -> InlineKeyboardMarkup:
-    """Выбор даты: 7 ближайших РАБОЧИХ дней (ВС — выходной)."""
+    """Выбор даты: семь ближайших календарных дней."""
     builder = InlineKeyboardBuilder()
     today = datetime.now()
     tomorrow = today + timedelta(days=1)
@@ -53,8 +53,6 @@ def dates_keyboard() -> InlineKeyboardMarkup:
     while added < 7:
         d = today + timedelta(days=offset)
         offset += 1
-        if d.weekday() == 6:  # Воскресенье — выходной
-            continue
         label = f"{d.strftime('%d.%m')} ({WEEKDAYS[d.weekday()]})"
         if d.date() == today.date():
             label = f"📌 Сегодня {label}"
@@ -67,21 +65,20 @@ def dates_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def time_keyboard(date_str: str, booked_slots: set) -> InlineKeyboardMarkup:
+def time_keyboard(date_str: str, unavailable: set[str]) -> InlineKeyboardMarkup:
     """Выбор времени. Занятые слоты помечаются."""
     builder = InlineKeyboardBuilder()
     now = datetime.now()
     today_str = now.strftime("%Y-%m-%d")
 
     for slot in TIME_SLOTS:
-        slot_key = f"{date_str}|{slot}"
         # Если дата сегодня — не показываем прошедшие слоты
         if date_str == today_str:
             slot_hour, slot_min = map(int, slot.split(":"))
             if slot_hour < now.hour or (slot_hour == now.hour and slot_min <= now.minute):
                 continue
 
-        if slot_key in booked_slots:
+        if slot in unavailable:
             builder.button(text=f"❌ {slot} (занято)", callback_data="ignore")
         else:
             builder.button(text=f"🕐 {slot}", callback_data=f"time:{slot}")
@@ -116,10 +113,13 @@ def skip_email_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def privacy_keyboard() -> InlineKeyboardMarkup:
-    """Согласие на обработку ПД."""
+def privacy_notice_keyboard() -> InlineKeyboardMarkup:
+    """Ссылка на политику до ввода персональных данных."""
     builder = InlineKeyboardBuilder()
-    builder.button(text="✅ Согласен", callback_data="privacy_accept")
+    builder.button(
+        text="📜 Политика обработки персональных данных",
+        url="https://apetr.net/bot-personal-data.html",
+    )
     builder.button(text="❌ Отмена", callback_data="cancel")
     builder.adjust(1)
     return builder.as_markup()

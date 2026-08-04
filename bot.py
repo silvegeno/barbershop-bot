@@ -19,9 +19,12 @@ from data import SERVICES, BARBERS, WEEKDAYS
 from keyboards import (
     start_keyboard, services_keyboard, barbers_keyboard,
     dates_keyboard, time_keyboard, confirm_keyboard, done_keyboard,
-    skip_email_keyboard, privacy_keyboard,
+    skip_email_keyboard, privacy_notice_keyboard,
 )
-from bookings import load_booked_slots, save_booking
+from bookings import (
+    generate_weekly_schedule, get_client, is_slot_available, save_booking, save_client,
+    unavailable_slots,
+)
 
 load_dotenv()
 
@@ -39,20 +42,8 @@ class Booking(StatesGroup):
     entering_name = State()
     entering_phone = State()
     entering_email = State()
-    accepting_privacy = State()
     confirming = State()
 
-
-# Текст политики конфиденциальности (сокращённый)
-PRIVACY_TEXT = (
-    "📜 <b>Согласие на обработку персональных данных</b>\n\n"
-    "Нажимая «Согласен», вы даёте согласие барбершопу BARBERVAULT "
-    "на обработку ваших персональных данных (имя, телефон, email) "
-    "исключительно для целей записи на услуги и отправки напоминаний о визите. "
-    "Данные не передаются третьим лицам.\n\n"
-    "С <a href='https://example.com/privacy'>политикой конфиденциальности</a> "
-    "ознакомлен(а)."
-)
 
 # ===========================================================================
 # ОБРАБОТЧИКИ
@@ -97,7 +88,7 @@ async def book_start(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Booking.choosing_service)
     await callback.message.delete()
     await callback.message.answer(
-        "✂️ <b>Шаг 1 из 8 — Выбери услугу:</b>",
+        "✂️ <b>Шаг 1 из 7 — Выбери услугу:</b>",
         reply_markup=services_keyboard(),
         parse_mode="HTML",
     )
@@ -111,7 +102,7 @@ async def service_chosen(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Booking.choosing_barber)
     await callback.message.edit_text(
         f"✅ <b>Услуга:</b> {service['name']} — {service['price']} ₽\n\n"
-        f"👤 <b>Шаг 2 из 8 — Выбери мастера:</b>",
+        f"👤 <b>Шаг 2 из 7 — Выбери мастера:</b>",
         reply_markup=barbers_keyboard(),
         parse_mode="HTML",
     )
@@ -126,7 +117,7 @@ async def barber_chosen(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Booking.choosing_date)
     await callback.message.edit_text(
         f"✅ <b>Мастер:</b> {barber['name']}\n\n"
-        f"📅 <b>Шаг 3 из 8 — Выбери дату:</b>",
+        f"📅 <b>Шаг 3 из 7 — Выбери дату:</b>",
         reply_markup=dates_keyboard(),
         parse_mode="HTML",
     )
@@ -138,8 +129,10 @@ async def date_chosen(callback: CallbackQuery, state: FSMContext):
     date_str = callback.data.split(":")[1]
     await state.update_data(date_str=date_str)
 
-    booked = load_booked_slots()
-    booked_slots = {k for k in booked if k.startswith(date_str)}
+    data = await state.get_data()
+    barber = BARBERS[data["barber_key"]]
+    service = SERVICES[data["service_key"]]
+    unavailable = unavailable_slots(date_str, barber["name"], service["duration_min"])
 
     d = datetime.strptime(date_str, "%Y-%m-%d")
     label = f"{d.strftime('%d.%m')} ({WEEKDAYS[d.weekday()]})"
@@ -147,8 +140,8 @@ async def date_chosen(callback: CallbackQuery, state: FSMContext):
     await state.set_state(Booking.choosing_time)
     await callback.message.edit_text(
         f"✅ <b>Дата:</b> {label}\n\n"
-        f"🕐 <b>Шаг 4 из 8 — Выбери время:</b>",
-        reply_markup=time_keyboard(date_str, booked_slots),
+        f"🕐 <b>Шаг 4 из 7 — Выбери время:</b>",
+        reply_markup=time_keyboard(date_str, unavailable),
         parse_mode="HTML",
     )
 
@@ -157,14 +150,42 @@ async def date_chosen(callback: CallbackQuery, state: FSMContext):
 async def time_chosen(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     time_str = callback.data.split(":")[1]
+    data = await state.get_data()
+    service = SERVICES[data["service_key"]]
+    barber = BARBERS[data["barber_key"]]
+    if not is_slot_available(data["date_str"], time_str, barber["name"], service["duration_min"]):
+        await callback.message.edit_text(
+            "⚠️ Это время только что заняли или услуга не успевает до закрытия. Выбери другое.",
+            reply_markup=time_keyboard(
+                data["date_str"],
+                unavailable_slots(data["date_str"], barber["name"], service["duration_min"]),
+            ),
+        )
+        return
     await state.update_data(time_str=time_str)
+
+    client = get_client(callback.from_user.id)
+    if client:
+        await state.update_data(
+            telegram_id=callback.from_user.id,
+            client_name=client["client_name"],
+            phone=client["phone"],
+            email=client.get("email", ""),
+        )
+        await state.set_state(Booking.confirming)
+        await show_confirmation(callback.message, state)
+        return
+
+    await state.update_data(telegram_id=callback.from_user.id)
     await state.set_state(Booking.entering_name)
 
     # Удаляем сообщение с выбором времени и шлём запрос имени
     await callback.message.delete()
     await callback.message.answer(
-        "👤 <b>Шаг 5 из 8 — Введи имя:</b>\n\n"
-        "<i>Как к тебе обращаться?</i>",
+        "👤 <b>Шаг 5 из 7 — Введи имя:</b>\n\n"
+        "<i>Как к тебе обращаться?</i>\n\n"
+        "Перед вводом ознакомься с политикой обработки персональных данных.",
+        reply_markup=privacy_notice_keyboard(),
         parse_mode="HTML",
     )
 
@@ -182,7 +203,7 @@ async def name_entered(message: Message, state: FSMContext):
     # Удаляем сообщение с именем (приватность)
     await message.delete()
     await message.answer(
-        "📱 <b>Шаг 6 из 8 — Введи телефон:</b>\n\n"
+        "📱 <b>Шаг 6 из 7 — Введи телефон:</b>\n\n"
         "<i>В формате +7XXXXXXXXXX или 8XXXXXXXXXX</i>\n"
         "Нужен для напоминания о записи.",
         parse_mode="HTML",
@@ -203,7 +224,7 @@ async def phone_entered(message: Message, state: FSMContext):
 
     await message.delete()
     await message.answer(
-        "📧 <b>Шаг 7 из 8 — Email (по желанию):</b>\n\n"
+        "📧 <b>Шаг 7 из 7 — Email (по желанию):</b>\n\n"
         "<i>Для отправки подтверждения записи. Можно пропустить.</i>",
         reply_markup=skip_email_keyboard(),
         parse_mode="HTML",
@@ -214,36 +235,23 @@ async def phone_entered(message: Message, state: FSMContext):
 async def email_entered(message: Message, state: FSMContext):
     email = message.text.strip()
     await state.update_data(email=email)
-    await state.set_state(Booking.accepting_privacy)
+    await state.set_state(Booking.confirming)
 
     await message.delete()
-    await message.answer(
-        PRIVACY_TEXT,
-        reply_markup=privacy_keyboard(),
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-    )
+    await show_confirmation(message, state)
 
 
 async def skip_email(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.update_data(email="")
-    await state.set_state(Booking.accepting_privacy)
-
-    await callback.message.delete()
-    await callback.message.answer(
-        PRIVACY_TEXT,
-        reply_markup=privacy_keyboard(),
-        parse_mode="HTML",
-        disable_web_page_preview=True,
-    )
-
-
-# --- Шаг 8: Подтверждение ---
-async def privacy_accepted(callback: CallbackQuery, state: FSMContext):
-    await callback.answer()
     await state.set_state(Booking.confirming)
 
+    await callback.message.delete()
+    await show_confirmation(callback.message, state)
+
+
+async def show_confirmation(message: Message, state: FSMContext):
+    """Показывает проверку записи для нового или повторного клиента."""
     data = await state.get_data()
     service = SERVICES[data["service_key"]]
     barber = BARBERS[data["barber_key"]]
@@ -265,8 +273,7 @@ async def privacy_accepted(callback: CallbackQuery, state: FSMContext):
         f"📧 <b>Email:</b> {data.get('email') or '—'}\n\n"
         f"Всё верно?"
     )
-    await callback.message.delete()
-    await callback.message.answer(text, reply_markup=confirm_keyboard(), parse_mode="HTML")
+    await message.answer(text, reply_markup=confirm_keyboard(), parse_mode="HTML")
 
 
 # --- Финальное подтверждение ---
@@ -278,11 +285,8 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
     date_str = data["date_str"]
     time_str = data["time_str"]
 
-    slot_key = f"{date_str}|{time_str}"
-
     # Проверка: не занят ли слот
-    booked = load_booked_slots()
-    if slot_key in booked:
+    if not is_slot_available(date_str, time_str, barber["name"], service["duration_min"]):
         await callback.message.edit_text(
             "⚠️ К сожалению, это время только что заняли. Выбери другое.",
             reply_markup=dates_keyboard(),
@@ -290,13 +294,22 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
         await state.set_state(Booking.choosing_date)
         return
 
-    # Сохраняем запись в CSV
+    # Сохраняем карточку нового клиента и подтверждённую запись.
+    if not get_client(data["telegram_id"]):
+        save_client({
+            "telegram_id": data["telegram_id"],
+            "client_name": data["client_name"],
+            "phone": data["phone"],
+            "email": data.get("email", ""),
+        })
     save_booking({
         "date": date_str,
         "time": time_str,
         "service": service["name"],
         "price": service["price"],
         "barber": barber["name"],
+        "duration_min": service["duration_min"],
+        "telegram_id": data["telegram_id"],
         "client_name": data["client_name"],
         "phone": data["phone"],
         "email": data.get("email", ""),
@@ -347,7 +360,7 @@ async def back_to_services(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.set_state(Booking.choosing_service)
     await callback.message.edit_text(
-        "✂️ <b>Шаг 1 из 8 — Выбери услугу:</b>",
+        "✂️ <b>Шаг 1 из 7 — Выбери услугу:</b>",
         reply_markup=services_keyboard(),
         parse_mode="HTML",
     )
@@ -357,7 +370,7 @@ async def back_to_barbers(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.set_state(Booking.choosing_barber)
     await callback.message.edit_text(
-        "👤 <b>Шаг 2 из 8 — Выбери мастера:</b>",
+        "👤 <b>Шаг 2 из 7 — Выбери мастера:</b>",
         reply_markup=barbers_keyboard(),
         parse_mode="HTML",
     )
@@ -367,7 +380,7 @@ async def back_to_dates(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     await state.set_state(Booking.choosing_date)
     await callback.message.edit_text(
-        "📅 <b>Шаг 3 из 8 — Выбери дату:</b>",
+        "📅 <b>Шаг 3 из 7 — Выбери дату:</b>",
         reply_markup=dates_keyboard(),
         parse_mode="HTML",
     )
@@ -386,6 +399,7 @@ async def main():
         print("❌ Ошибка: установите BOT_TOKEN в файле .env")
         return
 
+    generate_weekly_schedule()
     bot = Bot(token=token)
     dp = Dispatcher(storage=MemoryStorage())
 
@@ -409,9 +423,6 @@ async def main():
 
     # --- Пропуск email (callback) ---
     dp.callback_query.register(skip_email, F.data == "skip_email")
-
-    # --- Согласие на ПД ---
-    dp.callback_query.register(privacy_accepted, F.data == "privacy_accept")
 
     # --- Подтверждение ---
     dp.callback_query.register(confirm_booking, F.data == "confirm")

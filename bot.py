@@ -149,7 +149,7 @@ async def date_chosen(callback: CallbackQuery, state: FSMContext):
 # --- Шаг 4: Выбор времени ---
 async def time_chosen(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
-    time_str = callback.data.split(":")[1]
+    time_str = callback.data.removeprefix("time:")
     data = await state.get_data()
     service = SERVICES[data["service_key"]]
     barber = BARBERS[data["barber_key"]]

@@ -5,7 +5,7 @@ from aiogram.types import InlineKeyboardMarkup
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from datetime import datetime, timedelta
 
-from data import SERVICES, BARBERS, TIME_SLOTS, WEEKDAYS
+from data import SERVICES, TIME_SLOTS, WEEKDAYS, barbers_for_service
 
 
 def start_keyboard() -> InlineKeyboardMarkup:
@@ -30,10 +30,10 @@ def services_keyboard() -> InlineKeyboardMarkup:
     return builder.as_markup()
 
 
-def barbers_keyboard() -> InlineKeyboardMarkup:
-    """Выбор мастера."""
+def barbers_keyboard(service_key: str) -> InlineKeyboardMarkup:
+    """Выбор мастера, выполняющего выбранную услугу."""
     builder = InlineKeyboardBuilder()
-    for key, barber in BARBERS.items():
+    for key, barber in barbers_for_service(service_key).items():
         builder.button(
             text=f"{barber['name']} ({barber['specialty']})",
             callback_data=f"barber:{key}"

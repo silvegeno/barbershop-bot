@@ -27,13 +27,23 @@ for row in _services_raw:
         "category": row["category"],
     }
 
-# Мастера → {key: {name, specialty}}
+# Мастера → {key: {name, specialty, service_keys}}
 _barbers_raw = _load_csv("barbers.csv")
 BARBERS: dict[str, dict] = {}
 for row in _barbers_raw:
     BARBERS[row["key"]] = {
         "name": row["name"],
         "specialty": row["specialty"],
+        "service_keys": set(row["service_keys"].split(",")),
+    }
+
+
+def barbers_for_service(service_key: str) -> dict[str, dict]:
+    """Возвращает мастеров, которые выполняют выбранную услугу."""
+    return {
+        key: barber
+        for key, barber in BARBERS.items()
+        if service_key in barber["service_keys"]
     }
 
 # Рабочие часы: ежедневно 10:00–20:00 (10 часовых слотов)

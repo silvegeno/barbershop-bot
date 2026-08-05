@@ -16,7 +16,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from dotenv import load_dotenv
 
-from data import SERVICES, BARBERS, WEEKDAYS
+from data import SERVICES, BARBERS, WEEKDAYS, barbers_for_service
 from keyboards import (
     start_keyboard, services_keyboard, barbers_keyboard,
     dates_keyboard, time_keyboard, confirm_keyboard, done_keyboard,
@@ -137,7 +137,7 @@ async def service_chosen(callback: CallbackQuery, state: FSMContext):
     await callback.message.edit_text(
         f"✅ <b>Услуга:</b> {service['name']} — {service['price']} ₽\n\n"
         f"👤 <b>Шаг 2 из 7 — Выбери мастера:</b>",
-        reply_markup=barbers_keyboard(),
+        reply_markup=barbers_keyboard(service_key),
         parse_mode="HTML",
     )
 
@@ -147,6 +147,10 @@ async def barber_chosen(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
     barber_key = callback.data.split(":")[1]
     barber = BARBERS[barber_key]
+    data = await state.get_data()
+    if barber_key not in barbers_for_service(data["service_key"]):
+        await callback.answer("Этот мастер не выполняет выбранную услугу.", show_alert=True)
+        return
     await state.update_data(barber_key=barber_key)
     await state.set_state(Booking.choosing_date)
     await callback.message.edit_text(
@@ -416,10 +420,11 @@ async def back_to_services(callback: CallbackQuery, state: FSMContext):
 
 async def back_to_barbers(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
+    data = await state.get_data()
     await state.set_state(Booking.choosing_barber)
     await callback.message.edit_text(
         "👤 <b>Шаг 2 из 7 — Выбери мастера:</b>",
-        reply_markup=barbers_keyboard(),
+        reply_markup=barbers_keyboard(data["service_key"]),
         parse_mode="HTML",
     )
 

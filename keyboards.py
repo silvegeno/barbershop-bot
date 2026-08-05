@@ -35,7 +35,7 @@ def barbers_keyboard(service_key: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for key, barber in barbers_for_service(service_key).items():
         builder.button(
-            text=f"{barber['name']} ({barber['specialty']})",
+            text=f"{barber['name']} — {barber['specialty_short']}",
             callback_data=f"barber:{key}"
         )
     builder.button(text="⬅️ Назад", callback_data="back_to_services")

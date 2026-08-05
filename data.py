@@ -34,6 +34,7 @@ for row in _barbers_raw:
     BARBERS[row["key"]] = {
         "name": row["name"],
         "specialty": row["specialty"],
+        "specialty_short": row["specialty_short"],
         "service_keys": set(row["service_keys"].split(",")),
     }
 

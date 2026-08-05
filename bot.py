@@ -1,5 +1,5 @@
 """
-Чат-бот для записи в барбершоп BARBERVAULT.
+Чат-бот для записи в барбершоп Острый стиль.
 Кейс 4.2 — Telegram-бот с пошаговой записью.
 """
 import asyncio
@@ -90,7 +90,7 @@ async def cmd_start(message: Message, state: FSMContext):
     await message.answer_photo(
         photo=FSInputFile(os.path.join(BASE_DIR, "logo.png")),
         caption=(
-            "Добро пожаловать в барбершоп BARBERVAULT! ✂️\n\n"
+            "Добро пожаловать в барбершоп Острый стиль! ✂️\n\n"
             "Здесь ты можешь быстро записаться к мастеру:\n"
             "• 3 профессиональных барбера\n"
             "• Запись за 30 секунд"
@@ -105,7 +105,7 @@ async def about(callback: CallbackQuery):
     await callback.answer()
     await callback.message.delete()
     await callback.message.answer(
-        "🏆 Барбершоп BARBERVAULT — мужские стрижки с 2019 года.\n\n"
+        "🏆 Барбершоп Острый стиль — мужские стрижки с 2019 года.\n\n"
         "Наши мастера:\n"
         f"• {BARBERS['ivan']['name']} — {BARBERS['ivan']['specialty']}\n"
         f"• {BARBERS['dmitry']['name']} — {BARBERS['dmitry']['specialty']}\n"
@@ -395,7 +395,7 @@ async def back_to_start(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
     await callback.message.answer_photo(
         photo=FSInputFile(os.path.join(BASE_DIR, "logo.png")),
-        caption="Добро пожаловать в барбершоп BARBERVAULT! ✂️\n\nЧто хочешь сделать?",
+        caption="Добро пожаловать в барбершоп Острый стиль! ✂️\n\nЧто хочешь сделать?",
         reply_markup=start_keyboard(),
         parse_mode="HTML",
     )

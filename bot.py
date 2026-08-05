@@ -3,6 +3,7 @@
 Кейс 4.2 — Telegram-бот с пошаговой записью.
 """
 import asyncio
+import logging
 import os
 import re
 from datetime import datetime
@@ -45,6 +46,40 @@ class Booking(StatesGroup):
     confirming = State()
 
 
+async def notify_admin_about_booking(
+    bot: Bot,
+    service: dict,
+    barber: dict,
+    date_label: str,
+    time_str: str,
+    client_name: str,
+    phone: str,
+    email: str,
+) -> None:
+    """Отправляет администратору сообщение о новой подтверждённой записи."""
+    admin_id = os.getenv("ADMIN_TELEGRAM_ID")
+    if not admin_id or not admin_id.isdigit():
+        logging.warning("ADMIN_TELEGRAM_ID не задан или содержит некорректное значение")
+        return
+
+    text = (
+        "🔔 <b>Новая запись!</b>\n\n"
+        f"💈 Услуга: {service['name']}\n"
+        f"👤 Мастер: {barber['name']}\n"
+        f"📅 Дата: {date_label} в {time_str}\n"
+        f"⏱ Длительность: {service['duration_min']} мин\n"
+        f"💰 Цена: {service['price']} ₽\n\n"
+        f"👤 Клиент: {client_name}\n"
+        f"📱 Телефон: {phone}\n"
+        f"📧 Email: {email or '—'}"
+    )
+    try:
+        await bot.send_message(chat_id=int(admin_id), text=text, parse_mode="HTML")
+    except Exception:
+        # Запись уже сохранена: сбой уведомления не должен отменять её для клиента.
+        logging.exception("Не удалось отправить уведомление администратору")
+
+
 # ===========================================================================
 # ОБРАБОТЧИКИ
 # ===========================================================================
@@ -58,8 +93,7 @@ async def cmd_start(message: Message, state: FSMContext):
             "Добро пожаловать в барбершоп BARBERVAULT! ✂️\n\n"
             "Здесь ты можешь быстро записаться к мастеру:\n"
             "• 3 профессиональных барбера\n"
-            "• Запись за 30 секунд\n"
-            "• Напоминание перед визитом"
+            "• Запись за 30 секунд"
         ),
         reply_markup=start_keyboard(),
         parse_mode="HTML",
@@ -205,7 +239,7 @@ async def name_entered(message: Message, state: FSMContext):
     await message.answer(
         "📱 <b>Шаг 6 из 7 — Введи телефон:</b>\n\n"
         "<i>В формате +7XXXXXXXXXX или 8XXXXXXXXXX</i>\n"
-        "Нужен для напоминания о записи.",
+        "Нужен, чтобы барбершоп мог связаться с тобой.",
         parse_mode="HTML",
     )
 
@@ -277,7 +311,7 @@ async def show_confirmation(message: Message, state: FSMContext):
 
 
 # --- Финальное подтверждение ---
-async def confirm_booking(callback: CallbackQuery, state: FSMContext):
+async def confirm_booking(callback: CallbackQuery, state: FSMContext, bot: Bot):
     await callback.answer()
     data = await state.get_data()
     service = SERVICES[data["service_key"]]
@@ -318,6 +352,17 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
     d = datetime.strptime(date_str, "%Y-%m-%d")
     date_label = f"{d.strftime('%d.%m.%Y')} ({WEEKDAYS[d.weekday()]})"
 
+    await notify_admin_about_booking(
+        bot=bot,
+        service=service,
+        barber=barber,
+        date_label=date_label,
+        time_str=time_str,
+        client_name=data["client_name"],
+        phone=data["phone"],
+        email=data.get("email", ""),
+    )
+
     await state.clear()
     await callback.message.edit_text(
         "✅ <b>Запись подтверждена!</b>\n\n"
@@ -326,7 +371,7 @@ async def confirm_booking(callback: CallbackQuery, state: FSMContext):
         f"📅 {date_label} в {time_str}\n"
         f"💰 {service['price']} ₽\n\n"
         "📍 Ждём тебя по адресу: Воронежская ул., 44, корп. 1А\n"
-        "📲 Напомним за час до визита!\n\n"
+        "\n"
         "<i>Хорошего дня и острого стиля! 🪒</i>",
         reply_markup=done_keyboard(),
         parse_mode="HTML",

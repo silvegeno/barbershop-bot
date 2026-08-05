@@ -207,6 +207,9 @@ async def time_chosen(callback: CallbackQuery, state: FSMContext):
             email=client.get("email", ""),
         )
         await state.set_state(Booking.confirming)
+        # Экран выбора времени больше не нужен: подтверждение должно быть
+        # единственным активным сообщением в этом сценарии.
+        await callback.message.delete()
         await show_confirmation(callback.message, state)
         return
 

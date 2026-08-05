@@ -1,4 +1,4 @@
 key,name,specialty,service_keys
-ivan,Иван,Мужская стрижка / Коррекция бороды / Детская стрижка,"haircut,beard,kids,haircut_styling,combo_hair_beard,combo_father_son"
-dmitry,Дмитрий,Мужская стрижка / Коррекция бороды / Опасное бритьё,"haircut,beard,shave,royal_shave,combo_hair_beard,combo_hair_royal"
-artur,Артур,Мужская стрижка / Коррекция бороды / Fade-стрижки,"haircut,beard,buzzcut,combo_hair_beard,combo_full"
+ivan,Иван,Мужская стрижка / Коррекция бороды / Детская стрижка,"haircut,beard,kids,gentleman_ritual"
+dmitry,Дмитрий,Мужская стрижка / Коррекция бороды / Опасное бритьё,"haircut,beard,shave,gentleman_ritual"
+artur,Артур,Мужская стрижка / Коррекция бороды / Fade-стрижки,"haircut,beard,fade"
